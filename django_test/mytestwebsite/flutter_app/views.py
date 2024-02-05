@@ -7,6 +7,16 @@ from flutter_app.serializers import ProductSerializer
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
 from rest_framework.generics import CreateAPIView
+from django.contrib.auth import authenticate, login, logout
+from django.http import JsonResponse
+from django.contrib.auth.forms import UserCreationForm
+from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token
+from django.contrib.auth import authenticate, login
+from flutter_app.decorators import notLoggedUsers
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import AllowAny
+from django.views.decorators.csrf import csrf_protect
 
 class ProductListAPIView(APIView):
     def get(self, request):
@@ -60,3 +70,42 @@ class ProductDeleteAPIView(APIView):
 
         instance.delete()
         return JsonResponse({"message": "L'objet a été supprimé avec succès"}, status=status.HTTP_204_NO_CONTENT)
+
+@csrf_exempt
+@permission_classes([AllowAny])
+def login_view(request):
+    if request.user.is_authenticated:
+        return JsonResponse({'message': 'User is already logged in'},status=209)
+    if (('username' not in request.POST or 'password' not in request.POST) and user):
+        return JsonResponse({'message': 'Missing username or password'}, status=200)
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        # Authentifier l'utilisateur
+        user = authenticate(request, username=username, password=password)
+        
+        if user:
+            login(request, user)
+            return JsonResponse({'message': 'Login successful'})
+        else:
+            return JsonResponse({'message': 'Login failed'}, status=401)
+
+def logout_view(request):
+    logout(request)
+    return JsonResponse({'message': 'Logout successful'})
+@csrf_exempt 
+def register_view(request):
+    if request.method == 'POST':
+        print(f'Received data: {request.POST}')
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return JsonResponse({'message': 'Registration successful'})
+        else:
+            print(f'Form errors: {form.errors}')
+            return JsonResponse({'errors': form.errors}, status=400)
+def get_csrf_token(request):
+    token = get_token(request)
+    return JsonResponse({'csrf_token': token})
